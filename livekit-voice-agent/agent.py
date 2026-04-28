@@ -6,8 +6,16 @@ from dotenv import load_dotenv
 
 load_dotenv()  # muss vor allen anderen imports stehen
 
-from livekit import agents #livekit agents sdk
+from livekit.agents import AgentStateChangedEvent, MetricsCollectedEvent, metrics #to track metrics
+#Time to first LLM token (TTFT)
+#User interruption/barge-in rate
+#Tool latency and failure rate; fallback activations
+#Time to first audio frame (TTFA)
+#STT accuracy proxies (e.g., correction requests, intent reversals)
 
+
+from livekit import agents #livekit agents sdk
+ #from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from livekit.agents import (
     Agent,
     AgentSession,
@@ -17,7 +25,7 @@ from livekit.agents import (
     cli,
 )
 from livekit.plugins import noise_cancellation, silero, google
-
+#from livekit.agents import stt, tts, llm, inference 
 
 class Assistant(Agent): #defines agents behaviour 
     def __init__(self) -> None:
@@ -124,6 +132,8 @@ async def entrypoint(ctx: JobContext):
         # llm="openai/gpt-4.1-mini",
         # tts="cartesia/sonic-2",
         # vad=silero.VAD.load(),
+        #from livekit.plugins.turn_detector.multilingual import MultilingualModel
+        #turn_detection=MultilingualModel(),
         llm=google.realtime.RealtimeModel(
            # model="gemini-2.5-flash-native-audio-preview-12-2025", #per default eingestellt 
             voice="Puck",
