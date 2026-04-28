@@ -15,7 +15,6 @@ from livekit.agents import AgentStateChangedEvent, MetricsCollectedEvent, metric
 
 logger = logging.getLogger(__name__) #logging setup to track metrics and events, can be expanded to log to files or external systems
 
-from livekit import agents #livekit agents sdk
  #from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from livekit.agents import (
     Agent,
@@ -25,7 +24,7 @@ from livekit.agents import (
     WorkerOptions,
     cli,
 )
-from livekit.plugins import noise_cancellation, silero, google
+from livekit.plugins import noise_cancellation, google
 #from livekit.agents import stt, tts, llm, inference 
 
 class Assistant(Agent): #defines agents behaviour 
@@ -141,20 +140,29 @@ async def entrypoint(ctx: JobContext):
             temperature=0.8, # zufälligkeit der antworten  1 ist max kreativ aber wenig komsistent 
             enable_affective_dialog=True,  # passt Tonfall an Stimmung an (gemini spezifisch)
         ),
-        preemptive_generation=True, #generiert antworten, schon während der user spricht
     )
 
     usage_collector = metrics.UsageCollector()
-    last_eou_metrics: metrics.EOUMetrics | None = None
 
     @session.on("metrics_collected")
     def _on_metrics_collected(ev: MetricsCollectedEvent):
-        nonlocal last_eou_metrics
-        if ev.metrics.type == "eou_metrics":
-            last_eou_metrics = ev.metrics
-
         metrics.log_metrics(ev.metrics)
         usage_collector.collect(ev.metrics)
+
+    @session.on("agent_state_changed")
+    def _on_zustandswechsel(ev: AgentStateChangedEvent):
+        # Verfolgt Zustandsübergänge des Agenten (lauschen → denken → sprechen)
+        logger.info("Agent-Zustand: %s", ev.new_state)
+
+    @session.on("user_input_transcribed")  
+    def _on_transkript(ev):
+        # Speichert das transkribierte Gesprochene des Nutzers (für CRM-Logging und Analyse)
+        logger.info("Nutzer sagte: %s", ev.transcript)
+
+    @session.on("conversation_item_added")
+    def _on_gespraechseintrag(ev):
+        # Protokolliert jeden neuen Eintrag im Gesprächsverlauf (Nutzer- und Agenten-Turns)
+        logger.info("Gesprächseintrag: %s", ev.item)
 
     async def log_usage():
         summary = usage_collector.get_summary()
