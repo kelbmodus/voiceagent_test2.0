@@ -13,6 +13,7 @@ from livekit.agents import AgentStateChangedEvent, MetricsCollectedEvent, metric
 #Time to first audio frame (TTFA)
 #STT accuracy proxies (e.g., correction requests, intent reversals)
 
+logger = logging.getLogger(__name__) #logging setup to track metrics and events, can be expanded to log to files or external systems
 
 from livekit import agents #livekit agents sdk
  #from livekit.plugins.turn_detector.multilingual import MultilingualModel
@@ -140,7 +141,26 @@ async def entrypoint(ctx: JobContext):
             temperature=0.8, # zufälligkeit der antworten  1 ist max kreativ aber wenig komsistent 
             enable_affective_dialog=True,  # passt Tonfall an Stimmung an (gemini spezifisch)
         ),
+        preemptive_generation=True, #generiert antworten, schon während der user spricht
     )
+
+    usage_collector = metrics.UsageCollector()
+    last_eou_metrics: metrics.EOUMetrics | None = None
+
+    @session.on("metrics_collected")
+    def _on_metrics_collected(ev: MetricsCollectedEvent):
+        nonlocal last_eou_metrics
+        if ev.metrics.type == "eou_metrics":
+            last_eou_metrics = ev.metrics
+
+        metrics.log_metrics(ev.metrics)
+        usage_collector.collect(ev.metrics)
+
+    async def log_usage():
+        summary = usage_collector.get_summary()
+        logger.info("Usage summary: %s", summary)
+
+    ctx.add_shutdown_callback(log_usage)
 
     await session.start(
         agent=Assistant(),
