@@ -21,8 +21,7 @@ from livekit.agents import (
     AgentSession,
     JobContext, #job context ist info über den aktuellen klieneten der anruft 
     RoomInputOptions,
-    WorkerOptions,
-    cli,
+    AgentServer,
 )
 from livekit.plugins import noise_cancellation, google
 #from livekit.agents import stt, tts, llm, inference 
@@ -124,6 +123,9 @@ NIEMALS spreche über interne Prozesse, Tools, APIs oder technische Details!."""
         )
 
 
+server = AgentServer()
+
+@server.rtc_session()
 async def entrypoint(ctx: JobContext):
     await ctx.connect()
 
@@ -180,4 +182,5 @@ async def entrypoint(ctx: JobContext):
 
 
 if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
+    from livekit.agents import cli
+    cli.run_app(server)
