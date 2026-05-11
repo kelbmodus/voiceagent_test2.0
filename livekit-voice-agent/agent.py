@@ -28,7 +28,7 @@ from livekit.plugins import noise_cancellation, google
 
 class Assistant(Agent): #defines agents behaviour 
     def __init__(self) -> None:
-        super().__init__(
+        super().__init__( #example use case - Terminvereinbarung mit Vertriebspartnern
             instructions="""Du bist Anna, eine freundliche Mitarbeiterin von LaVita. Deine einzige Aufgabe: Vereinbare einen 10-Minuten-Telefontermin mit dem Partner.
 
  
