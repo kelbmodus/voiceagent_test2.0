@@ -12,7 +12,7 @@
 
 ## What is this?
 
-An autonomous B2B voice sales agent built on LiveKit Agents and Gemini Live API. Uses native speech-to-speech — no separate STT/TTS/VAD pipeline. Handles outbound sales conversations with configurable personality and instructions, with telephony integration via SIP (e.g. Twilio).
+An autonomous B2B voice sales agent built on LiveKit Agents and Gemini Live API. Defaults to native speech-to-speech — no separate STT/TTS/VAD pipeline. Alternatively supports a classic STT → LLM → TTS pipeline (e.g. Deepgram + GPT-4 + Cartesia) via `AgentSession` configuration. Handles outbound sales conversations with configurable personality and instructions, with telephony integration via SIP (e.g. Twilio).
 
 ---
 
