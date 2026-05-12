@@ -15,7 +15,7 @@ from livekit.agents import AgentStateChangedEvent, MetricsCollectedEvent, metric
 
 logger = logging.getLogger(__name__) #logging setup to track metrics and events, can be expanded to log to files or external systems
 
- #from livekit.plugins.turn_detector.multilingual import MultilingualModel
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from livekit.agents import (
     Agent,
     AgentSession,
@@ -134,13 +134,11 @@ async def entrypoint(ctx: JobContext):
         # llm="openai/gpt-4.1-mini",
         # tts="cartesia/sonic-2",
         # vad=silero.VAD.load(),
-        #from livekit.plugins.turn_detector.multilingual import MultilingualModel
-        #turn_detection=MultilingualModel(),
+        turn_detection=MultilingualModel(),
         llm=google.realtime.RealtimeModel(
-           # model="gemini-2.5-flash-native-audio-preview-12-2025", #per default eingestellt 
+           # model="gemini-2.5-flash-native-audio-preview-12-2025", #per default eingestellt
             voice="Puck",
-            temperature=0.8, # zufälligkeit der antworten  1 ist max kreativ aber wenig komsistent 
-            enable_affective_dialog=True,  # passt Tonfall an Stimmung an (gemini spezifisch)
+            temperature=0.6, # zufälligkeit der antworten  1 ist max kreativ aber wenig komsistent
         ),
     )
 
@@ -180,6 +178,9 @@ async def entrypoint(ctx: JobContext):
         ),
     )
 
+    await session.generate_reply(
+        instructions="Begrüße den Partner gemäß deinem Beispiel-Auftakt und starte das Gespräch."
+    )
 
 if __name__ == "__main__":
     from livekit.agents import cli
