@@ -16,12 +16,16 @@ from livekit.agents import AgentStateChangedEvent, MetricsCollectedEvent, metric
 logger = logging.getLogger(__name__) #logging setup to track metrics and events, can be expanded to log to files or external systems
 
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
+from livekit import api
 from livekit.agents import (
     Agent,
     AgentSession,
-    JobContext, #job context ist info über den aktuellen klieneten der anruft 
+    JobContext,  # job context ist info über den aktuellen klieneten der anruft
     RoomInputOptions,
     AgentServer,
+    RunContext,
+    function_tool,
+    get_job_context,
 )
 from livekit.plugins import noise_cancellation, google
 #from livekit.agents import stt, tts, llm, inference 
@@ -117,9 +121,31 @@ GESPRÄCHSENDE (SEHR WICHTIG):
 
 - Sage nur noch: "Vielen Dank - bis zum Termin!" dann SOFORT Stille
 
- 
+- Nach der Verabschiedung rufe das Tool `end_call` auf, um den Anruf zu beenden.
+
+
 
 NIEMALS spreche über interne Prozesse, Tools, APIs oder technische Details!.""",
+        )
+
+    @function_tool
+    async def end_call(self, ctx: RunContext) -> None:
+        """Beende den Anruf nach der Verabschiedung.
+
+        Rufe dieses Tool auf, NACHDEM du dich verabschiedet hast
+        ("Vielen Dank – bis zum Termin!" oder ähnlich) und sicher bist,
+        dass das Gespräch zu Ende ist.
+        """
+        # Goodbye zu Ende sprechen lassen, bevor wir den Raum schließen.
+        # Wichtig für Gemini Realtime: ohne Wait wird das letzte Audio-Frame abgeschnitten.
+        current_speech = ctx.session.current_speech
+        if current_speech is not None:
+            await current_speech.wait_for_playout()
+
+        # Raum löschen → alle Teilnehmer (inkl. Anna selbst) disconnecten.
+        job_ctx = get_job_context()
+        await job_ctx.api.room.delete_room(
+            api.DeleteRoomRequest(room=job_ctx.room.name)
         )
 
 
