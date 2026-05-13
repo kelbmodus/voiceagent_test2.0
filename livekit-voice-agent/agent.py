@@ -1,10 +1,14 @@
+import json
 import logging
+import os
 
 #manche imports werden nicht für real time modesl gebraucht aber für stt tts llm schon
 
 from dotenv import load_dotenv
 
 load_dotenv()  # muss vor allen anderen imports stehen
+
+SIP_TRUNK_ID = os.getenv("LIVEKIT_SIP_TRUNK_ID", "")
 
 from livekit.agents import AgentStateChangedEvent, MetricsCollectedEvent, metrics #to track metrics
 #Time to first LLM token (TTFT)
@@ -159,19 +163,51 @@ server = AgentServer()
 async def entrypoint(ctx: JobContext):
     await ctx.connect()
 
+    # Metadaten parsen: {"phone": "+49123456789", "name": "Max Mustermann"}
+    # Im Console-Mode ist metadata leer → phone_number bleibt None
+    metadata: dict = {}
+    if ctx.job.metadata:
+        try:
+            metadata = json.loads(ctx.job.metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {"phone": ctx.job.metadata}
+
+    phone_number: str | None = metadata.get("phone")
+    partner_name: str = metadata.get("name", "")
+
+    # Ausgehenden Anruf starten (nur bei echtem SIP-Call)
+    if phone_number:
+        logger.info("Starte ausgehenden Anruf → %s", phone_number)
+        try:
+            await ctx.api.sip.create_sip_participant(
+                api.CreateSIPParticipantRequest(
+                    sip_trunk_id=SIP_TRUNK_ID,
+                    sip_call_to=phone_number,
+                    room_name=ctx.room.name,
+                    participant_identity="phone-user",
+                    participant_name=partner_name or phone_number,
+                    wait_until_answered=True,
+                )
+            )
+            logger.info("Anruf angenommen: %s", phone_number)
+        except Exception as e:
+            logger.error("Anruf fehlgeschlagen (%s): %s — Session wird beendet.", phone_number, e)
+            return
+
+    # Noise Cancellation: BVCTelephony für SIP, BVC für Console
+    nc = noise_cancellation.BVCTelephony() if phone_number else noise_cancellation.BVC()
+
     session = AgentSession(
         # stt="deepgram/nova-3",
         # llm="openai/gpt-4.1-mini",
         # tts="cartesia/sonic-2",
         # vad=silero.VAD.load(),
         # Kein externes turn_detection: Native Audio Model hat eingebautes VAD.
-        # MultilingualModel würde mit der Server-VAD kollidieren.
         llm=google_realtime.RealtimeModel(
-            model="gemini-2.5-flash-native-audio-preview-12-2025",  # explizit pinnen, kein Default
+            model="gemini-2.5-flash-native-audio-preview-12-2025",
             voice="Puck",
-            temperature=0.6,  # Zufälligkeit. 1 = maximal kreativ, aber weniger konsistent.
-            tool_response_scheduling=FunctionResponseScheduling.WHEN_IDLE,  # Tool-Responses werden in Idle-Phasen platziert.
-            # Ohne diesen Parameter schließt der Server mit WebSocket 1008 sobald ein Tool getriggert wird.
+            temperature=0.6,
+            tool_response_scheduling=FunctionResponseScheduling.WHEN_IDLE,
         ),
     )
 
@@ -184,17 +220,14 @@ async def entrypoint(ctx: JobContext):
 
     @session.on("agent_state_changed")
     def _on_zustandswechsel(ev: AgentStateChangedEvent):
-        # Verfolgt Zustandsübergänge des Agenten (lauschen → denken → sprechen)
         logger.info("Agent-Zustand: %s", ev.new_state)
 
-    @session.on("user_input_transcribed")  
+    @session.on("user_input_transcribed")
     def _on_transkript(ev):
-        # Speichert das transkribierte Gesprochene des Nutzers (für CRM-Logging und Analyse)
         logger.info("Nutzer sagte: %s", ev.transcript)
 
     @session.on("conversation_item_added")
     def _on_gespraechseintrag(ev):
-        # Protokolliert jeden neuen Eintrag im Gesprächsverlauf (Nutzer- und Agenten-Turns)
         logger.info("Gesprächseintrag: %s", ev.item)
 
     async def log_usage():
@@ -207,13 +240,18 @@ async def entrypoint(ctx: JobContext):
         agent=Assistant(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
-            noise_cancellation=noise_cancellation.BVC(),
+            noise_cancellation=nc,
         ),
     )
 
-    await session.generate_reply(
-        instructions="Begrüße den Partner gemäß deinem Beispiel-Auftakt und starte das Gespräch."
+    # Begrüßung mit Partnername falls bekannt
+    greeting_context = (
+        f"Begrüße den Partner gemäß deinem Beispiel-Auftakt. "
+        f"Der Name des Partners ist: {partner_name}." if partner_name
+        else "Begrüße den Partner gemäß deinem Beispiel-Auftakt und starte das Gespräch."
     )
+
+    await session.generate_reply(instructions=greeting_context)
 
 if __name__ == "__main__":
     from livekit.agents import cli
