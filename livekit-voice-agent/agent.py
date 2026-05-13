@@ -15,7 +15,6 @@ from livekit.agents import AgentStateChangedEvent, MetricsCollectedEvent, metric
 
 logger = logging.getLogger(__name__) #logging setup to track metrics and events, can be expanded to log to files or external systems
 
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from livekit import api
 from livekit.agents import (
     Agent,
@@ -27,7 +26,8 @@ from livekit.agents import (
     function_tool,
     get_job_context,
 )
-from livekit.plugins import noise_cancellation, google
+from livekit.plugins import noise_cancellation
+from livekit.plugins.google.beta import realtime as google_realtime
 #from livekit.agents import stt, tts, llm, inference 
 
 class Assistant(Agent): #defines agents behaviour 
@@ -160,11 +160,14 @@ async def entrypoint(ctx: JobContext):
         # llm="openai/gpt-4.1-mini",
         # tts="cartesia/sonic-2",
         # vad=silero.VAD.load(),
-        turn_detection=MultilingualModel(),
-        llm=google.realtime.RealtimeModel(
-           # model="gemini-2.5-flash-native-audio-preview-12-2025", #per default eingestellt
+        # Kein externes turn_detection: Native Audio Model hat eingebautes VAD.
+        # MultilingualModel würde mit der Server-VAD kollidieren.
+        llm=google_realtime.RealtimeModel(
+            model="gemini-2.5-flash-native-audio-preview-12-2025",  # explizit pinnen, kein Default
             voice="Puck",
-            temperature=0.6, # zufälligkeit der antworten  1 ist max kreativ aber wenig komsistent
+            temperature=0.6,  # Zufälligkeit. 1 = maximal kreativ, aber weniger konsistent.
+            tool_response_scheduling="WHEN_IDLE",  # Tool-Responses werden in Idle-Phasen platziert.
+            # Ohne diesen Parameter schließt der Server mit WebSocket 1008 sobald ein Tool getriggert wird.
         ),
     )
 
