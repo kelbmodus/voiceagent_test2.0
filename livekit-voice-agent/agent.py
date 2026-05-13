@@ -136,17 +136,20 @@ NIEMALS spreche über interne Prozesse, Tools, APIs oder technische Details!."""
         ("Vielen Dank – bis zum Termin!" oder ähnlich) und sicher bist,
         dass das Gespräch zu Ende ist.
         """
-        # Goodbye zu Ende sprechen lassen, bevor wir den Raum schließen.
-        # Wichtig für Gemini Realtime: ohne Wait wird das letzte Audio-Frame abgeschnitten.
-        current_speech = ctx.session.current_speech
-        if current_speech is not None:
-            await current_speech.wait_for_playout()
+        # RunContext.wait_for_playout() verwenden — NICHT current_speech.wait_for_playout().
+        # Das Tool hält den SpeechHandle selbst → circular wait sonst (RuntimeError).
+        await ctx.wait_for_playout()
 
-        # Raum löschen → alle Teilnehmer (inkl. Anna selbst) disconnecten.
-        job_ctx = get_job_context()
-        await job_ctx.api.room.delete_room(
-            api.DeleteRoomRequest(room=job_ctx.room.name)
-        )
+        # Raum löschen → alle Teilnehmer disconnecten.
+        # Im Console-Mode existiert kein echter Raum → Fallback auf session.shutdown().
+        try:
+            job_ctx = get_job_context()
+            await job_ctx.api.room.delete_room(
+                api.DeleteRoomRequest(room=job_ctx.room.name)
+            )
+        except Exception as e:
+            logger.warning("Room deletion fehlgeschlagen (erwartet im Console-Mode): %s", e)
+            ctx.session.shutdown()
 
 
 server = AgentServer()
