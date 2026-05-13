@@ -26,6 +26,7 @@ from livekit.agents import (
     function_tool,
     get_job_context,
 )
+from google.genai.types import FunctionResponseScheduling
 from livekit.plugins import noise_cancellation
 from livekit.plugins.google.beta import realtime as google_realtime
 #from livekit.agents import stt, tts, llm, inference 
@@ -169,7 +170,7 @@ async def entrypoint(ctx: JobContext):
             model="gemini-2.5-flash-native-audio-preview-12-2025",  # explizit pinnen, kein Default
             voice="Puck",
             temperature=0.6,  # Zufälligkeit. 1 = maximal kreativ, aber weniger konsistent.
-            tool_response_scheduling="WHEN_IDLE",  # Tool-Responses werden in Idle-Phasen platziert.
+            tool_response_scheduling=FunctionResponseScheduling.WHEN_IDLE,  # Tool-Responses werden in Idle-Phasen platziert.
             # Ohne diesen Parameter schließt der Server mit WebSocket 1008 sobald ein Tool getriggert wird.
         ),
     )
